@@ -1,0 +1,56 @@
+# Maven build output
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Compiled files
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+logs/
+
+# IDE: IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# IDE: Eclipse / STS
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+bin/
+
+# IDE: VS Code
+.vscode/
+
+# IDE: NetBeans
+nbproject/
+nbbuild/
+nbdist/
+
+# Environment and secrets
+.env
+*.env
+application-local.properties
+application-local.yml
+secrets.properties
+
+# Local databases (H2 files)
+*.mv.db
+*.trace.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.bak
+*.swp
