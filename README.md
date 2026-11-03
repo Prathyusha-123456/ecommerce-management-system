@@ -96,7 +96,7 @@ JDK 17+, Maven 3.9+ (or use STS / IntelliJ), and either PostgreSQL or Docker.
 ### Option A - with PostgreSQL (recommended)
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/ecommerce-management-system.git
+git clone https://github.com/Prathyusha-123456/ecommerce-management-system.git
 cd ecommerce-management-system
 
 docker compose up -d          # starts PostgreSQL on :5432 (db: ecommerce_db)
