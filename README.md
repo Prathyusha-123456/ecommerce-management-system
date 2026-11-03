@@ -2,7 +2,7 @@
 
 A full-stack e-commerce application built with **Java 17, Spring Boot 3, Spring Security (JWT), Spring Data JPA / Hibernate and PostgreSQL**. It covers the complete shopping flow: registration and login, product catalogue with search / filter / pagination, shopping cart, checkout with payment processing, order history and an admin panel. A lightweight HTML/CSS/JavaScript frontend is served by the same application, and every endpoint is documented with Swagger.
 
-![Java](https://img.shields.io/badge/Java-17-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-brightgreen) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue) ![CI](https://github.com/YOUR-USERNAME/ecommerce-management-system/actions/workflows/ci.yml/badge.svg)
+![Java](https://img.shields.io/badge/Java-17-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-brightgreen) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue) ![CI](https://github.com/Prathyusha-123456/ecommerce-management-system/actions/workflows/ci.yml/badge.svg)
 
 ## Features
 
