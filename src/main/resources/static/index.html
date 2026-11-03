@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopEase - E-Commerce Management System</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --ink:#1c2130; --muted:#6b7280; --accent:#4f46e5; --accent-d:#4338ca;
+          --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --line:#e5e7eb; --r:12px; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .bar { max-width:1100px; margin:auto; display:flex; align-items:center; gap:14px; padding:12px 20px; flex-wrap:wrap; }
+  .brand { font-weight:800; font-size:20px; color:var(--accent); cursor:pointer; }
+  nav { display:flex; gap:4px; flex:1; flex-wrap:wrap; }
+  nav button { background:none; border:0; padding:8px 12px; border-radius:8px; font:inherit; color:var(--ink); cursor:pointer; }
+  nav button:hover, nav button.on { background:#eef2ff; color:var(--accent-d); }
+  .badge { background:var(--accent); color:#fff; border-radius:10px; font-size:12px; padding:1px 7px; margin-left:4px; }
+  main { max-width:1100px; margin:24px auto; padding:0 20px 60px; }
+  h2 { margin:0 0 16px; } h3 { margin:0 0 10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:18px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:16px; }
+  .prod { display:flex; flex-direction:column; gap:6px; margin:0; }
+  .thumb { height:110px; border-radius:10px; background:linear-gradient(135deg,#eef2ff,#e0e7ff); display:grid; place-items:center; font-size:44px; }
+  .muted { color:var(--muted); font-size:13px; } .price { font-weight:700; font-size:18px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .grow { flex:1; }
+  input, select, textarea { font:inherit; padding:9px 11px; border:1px solid #d1d5db; border-radius:8px; background:#fff; min-width:0; }
+  textarea { width:100%; min-height:70px; }
+  .btn { background:var(--accent); color:#fff; border:0; padding:9px 16px; border-radius:8px; font:inherit; font-weight:600; cursor:pointer; }
+  .btn:hover { background:var(--accent-d); }
+  .btn.sec { background:#fff; color:var(--ink); border:1px solid #d1d5db; } .btn.sec:hover { background:#f3f4f6; }
+  .btn.bad { background:var(--bad); } .btn.sm { padding:5px 10px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; text-transform:uppercase; color:var(--muted); letter-spacing:.04em; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; background:#e5e7eb; }
+  .PAID,.DELIVERED,.SUCCESS { background:#dcfce7; color:var(--ok); } .PLACED,.PENDING,.SHIPPED { background:#fef3c7; color:var(--warn); }
+  .CANCELLED,.REFUNDED,.FAILED { background:#fee2e2; color:var(--bad); }
+  .form { display:grid; gap:10px; max-width:380px; } .form.wide { max-width:none; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .pager { display:flex; justify-content:center; align-items:center; gap:14px; margin-top:8px; }
+  #toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:11px 18px;
+           border-radius:10px; opacity:0; pointer-events:none; transition:.25s; max-width:90vw; z-index:20; }
+  #toast.show { opacity:1; } #toast.err { background:var(--bad); }
+  footer { text-align:center; color:var(--muted); font-size:13px; padding-bottom:30px; } footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <span class="brand" onclick="go('products')">🛍️ ShopEase</span>
+    <nav id="nav"></nav>
+    <div class="row" id="who"></div>
+  </div>
+</header>
+<main id="view"></main>
+<footer>Demo UI for the Spring Boot REST API &middot; <a href="/swagger-ui.html" target="_blank">Open API docs (Swagger)</a></footer>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ICON = { Electronics:'📱', Books:'📚', Fashion:'👕', 'Home & Kitchen':'🍳' };
+const NEXT = { PLACED:['PAID','SHIPPED','CANCELLED'], PAID:['SHIPPED','CANCELLED'], SHIPPED:['DELIVERED'], DELIVERED:[], CANCELLED:[] };
+
+const S = {
+  token: localStorage.getItem('token'),
+  user: JSON.parse(localStorage.getItem('user') || 'null'),
+  categories: [], cartCount: 0, view: 'products', authMode: 'login',
+  f: { keyword: '', categoryId: '', sort: 'createdAt,desc', page: 0 }
+};
+
+/* ---------- helpers ---------- */
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (S.token) headers.Authorization = 'Bearer ' + S.token;
+  const res = await fetch(path, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  let data = null; try { data = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    if (res.status === 401 && S.token) { logout(false); }
+    const details = data && data.fieldErrors ? ' (' + Object.values(data.fieldErrors).join('; ') + ')' : '';
+    throw new Error(((data && data.message) || res.statusText) + details);
+  }
+  return data;
+}
+function toast(msg, err) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 3200);
+}
+async function run(fn) { try { await fn(); } catch (e) { toast(e.message, true); } }
+function setAuth(a) {
+  S.token = a.token; S.user = a.user;
+  localStorage.setItem('token', a.token); localStorage.setItem('user', JSON.stringify(a.user));
+}
+function logout(render = true) {
+  S.token = null; S.user = null; S.cartCount = 0;
+  localStorage.removeItem('token'); localStorage.removeItem('user');
+  if (render) { toast('Logged out'); go('products'); }
+}
+async function refreshCartCount() {
+  if (!S.token) { S.cartCount = 0; return; }
+  try { S.cartCount = (await api('/api/cart')).totalItems; } catch (_) { S.cartCount = 0; }
+}
+
+/* ---------- shell ---------- */
+function renderShell() {
+  const isAdmin = S.user && S.user.role === 'ADMIN';
+  const tabs = [['products','Products']];
+  if (S.user) tabs.push(['cart','Cart' + (S.cartCount ? `<span class="badge">${S.cartCount}</span>` : '')], ['orders','My Orders']);
+  if (isAdmin) tabs.push(['admin','Admin']);
+  $('#nav').innerHTML = tabs.map(([v, l]) => `<button class="${S.view === v ? 'on' : ''}" onclick="go('${v}')">${l}</button>`).join('');
+  $('#who').innerHTML = S.user
+    ? `<span class="muted">Hi, ${esc(S.user.name)} ${isAdmin ? '<span class="tag PAID">ADMIN</span>' : ''}</span><button class="btn sec sm" onclick="logout()">Logout</button>`
+    : `<button class="btn sm" onclick="go('auth')">Login / Register</button>`;
+}
+async function go(view) {
+  S.view = view;
+  if ((view === 'cart' || view === 'orders' || view === 'admin') && !S.user) view = S.view = 'auth';
+  await refreshCartCount();
+  renderShell();
+  await run(() => ({ products: viewProducts, cart: viewCart, orders: viewOrders, admin: viewAdmin, auth: viewAuth }[view]()));
+}
+
+/* ---------- auth ---------- */
+function viewAuth() {
+  const login = S.authMode === 'login';
+  $('#view').innerHTML = `<div class="card" style="max-width:440px;margin:auto">
+    <div class="tabs"><button class="btn ${login ? '' : 'sec'}" onclick="S.authMode='login';viewAuth()">Login</button>
+    <button class="btn ${login ? 'sec' : ''}" onclick="S.authMode='register';viewAuth()">Register</button></div>
+    <form class="form" onsubmit="event.preventDefault();submitAuth()">
+      ${login ? '' : '<input id="a-name" placeholder="Full name" required>'}
+      <input id="a-email" type="email" placeholder="Email" required>
+      <input id="a-pass" type="password" placeholder="Password (min 8 characters)" required>
+      ${login ? '' : '<input id="a-phone" placeholder="Phone (optional)">'}
+      <button class="btn">${login ? 'Login' : 'Create account'}</button>
+      ${login ? '<span class="muted">Demo admin: admin@ecommerce.com / Admin@123</span>' : ''}
+    </form></div>`;
+}
+function submitAuth() {
+  run(async () => {
+    const login = S.authMode === 'login';
+    const body = { email: $('#a-email').value, password: $('#a-pass').value };
+    if (!login) { body.name = $('#a-name').value; body.phone = $('#a-phone').value; }
+    setAuth(await api(login ? '/api/auth/login' : '/api/auth/register', { method: 'POST', body }));
+    toast(login ? 'Welcome back!' : 'Account created');
+    go('products');
+  });
+}
+
+/* ---------- products ---------- */
+async function viewProducts() {
+  if (!S.categories.length) S.categories = await api('/api/categories');
+  const f = S.f, [sortBy, direction] = f.sort.split(',');
+  const qs = new URLSearchParams({ page: f.page, size: 8, sortBy, direction });
+  if (f.keyword) qs.set('keyword', f.keyword);
+  if (f.categoryId) qs.set('categoryId', f.categoryId);
+  const p = await api('/api/products?' + qs);
+  $('#view').innerHTML = `<h2>Products</h2>
+    <div class="card row">
+      <input id="f-q" class="grow" placeholder="Search products..." value="${esc(f.keyword)}" onkeydown="if(event.key==='Enter')applyFilters()">
+      <select id="f-c" onchange="applyFilters()"><option value="">All categories</option>
+        ${S.categories.map(c => `<option value="${c.id}" ${String(c.id) === String(f.categoryId) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+      <select id="f-s" onchange="applyFilters()">
+        ${[['createdAt,desc','Newest'],['price,asc','Price: low to high'],['price,desc','Price: high to low'],['name,asc','Name A-Z']]
+          .map(([v, l]) => `<option value="${v}" ${v === f.sort ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <button class="btn" onclick="applyFilters()">Search</button>
+    </div>
+    ${p.content.length ? `<div class="grid">${p.content.map(productCard).join('')}</div>` : '<div class="card muted">No products found.</div>'}
+    <div class="pager"><button class="btn sec sm" ${f.page === 0 ? 'disabled' : ''} onclick="page(-1)">&larr; Prev</button>
+      <span class="muted">Page ${p.page + 1} of ${Math.max(p.totalPages, 1)} &middot; ${p.totalElements} items</span>
+      <button class="btn sec sm" ${p.last ? 'disabled' : ''} onclick="page(1)">Next &rarr;</button></div>`;
+}
+function productCard(p) {
+  return `<div class="card prod"><div class="thumb">${ICON[p.categoryName] || '🛍️'}</div>
+    <strong>${esc(p.name)}</strong><span class="muted">${esc(p.categoryName)}</span>
+    <span class="muted">${esc(p.description || '')}</span>
+    <div class="row"><span class="price grow">${money(p.price)}</span>
+      <span class="muted">${p.stockQuantity > 0 ? p.stockQuantity + ' in stock' : 'Out of stock'}</span></div>
+    <button class="btn" ${p.stockQuantity < 1 ? 'disabled' : ''} onclick="addToCart(${p.id})">Add to cart</button></div>`;
+}
+function applyFilters() {
+  S.f = { keyword: $('#f-q').value.trim(), categoryId: $('#f-c').value, sort: $('#f-s').value, page: 0 };
+  run(viewProducts);
+}
+function page(d) { S.f.page += d; run(viewProducts); }
+function addToCart(id) {
+  if (!S.user) { toast('Please log in to add items to your cart', true); return go('auth'); }
+  run(async () => {
+    const c = await api('/api/cart/items', { method: 'POST', body: { productId: id, quantity: 1 } });
+    S.cartCount = c.totalItems; renderShell(); toast('Added to cart');
+  });
+}
+
+/* ---------- cart & checkout ---------- */
+async function viewCart() {
+  const c = await api('/api/cart');
+  S.cartCount = c.totalItems; renderShell();
+  if (!c.items.length) { $('#view').innerHTML = '<h2>Your cart</h2><div class="card muted">Your cart is empty.</div>'; return; }
+  $('#view').innerHTML = `<h2>Your cart</h2><div class="card"><table>
+    <tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr>
+    ${c.items.map(i => `<tr><td>${esc(i.productName)}</td><td>${money(i.unitPrice)}</td>
+      <td><input type="number" min="1" max="${i.availableStock}" value="${i.quantity}" style="width:70px" onchange="setQty(${i.productId}, this.value)"></td>
+      <td>${money(i.subtotal)}</td><td><button class="btn sec sm" onclick="removeItem(${i.productId})">Remove</button></td></tr>`).join('')}
+    <tr><td colspan="3"><strong>Total</strong></td><td colspan="2"><strong>${money(c.totalAmount)}</strong></td></tr></table></div>
+    <div class="card"><h3>Checkout</h3><div class="form">
+      <textarea id="c-addr" placeholder="Shipping address">${esc((S.user && S.user.address) || '')}</textarea>
+      <select id="c-pay"><option value="UPI">UPI</option><option value="CARD">Credit / Debit card</option>
+        <option value="NET_BANKING">Net banking</option><option value="COD">Cash on delivery</option></select>
+      <button class="btn" onclick="placeOrder()">Place order &middot; ${money(c.totalAmount)}</button>
+      <span class="muted">Online payments use a simulated gateway - no real money is charged.</span></div></div>`;
+}
+function setQty(id, q) { run(async () => { await api('/api/cart/items/' + id, { method: 'PUT', body: { quantity: Number(q) } }); await viewCart(); }); }
+function removeItem(id) { run(async () => { await api('/api/cart/items/' + id, { method: 'DELETE' }); await viewCart(); }); }
+function placeOrder() {
+  run(async () => {
+    const o = await api('/api/orders', { method: 'POST', body: { shippingAddress: $('#c-addr').value, paymentMethod: $('#c-pay').value } });
+    toast('Order #' + o.id + ' placed!'); go('orders');
+  });
+}
+
+/* ---------- orders ---------- */
+function orderCard(o, admin) {
+  const canCancel = !admin && (o.status === 'PLACED' || o.status === 'PAID');
+  return `<div class="card"><div class="row"><strong class="grow">Order #${o.id}</strong>
+      ${admin ? `<span class="muted">${esc(o.userEmail)}</span>` : ''}
+      <span class="muted">${new Date(o.createdAt).toLocaleString()}</span><span class="tag ${o.status}">${o.status}</span></div>
+    <table>${o.items.map(i => `<tr><td>${esc(i.productName)} &times; ${i.quantity}</td><td style="text-align:right">${money(i.subtotal)}</td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:10px"><span class="grow muted">${esc(o.shippingAddress)}</span>
+      ${o.payment ? `<span class="muted">${o.payment.method}</span><span class="tag ${o.payment.status}">${o.payment.status}</span>` : ''}
+      <strong>${money(o.totalAmount)}</strong>
+      ${canCancel ? `<button class="btn bad sm" onclick="cancelOrder(${o.id})">Cancel</button>` : ''}
+      ${admin && NEXT[o.status].length ? `<select onchange="setStatus(${o.id}, this.value)"><option value="">Change status...</option>
+        ${NEXT[o.status].map(s => `<option>${s}</option>`).join('')}</select>` : ''}</div></div>`;
+}
+async function viewOrders() {
+  const p = await api('/api/orders?size=20');
+  $('#view').innerHTML = '<h2>My orders</h2>' + (p.content.length ? p.content.map(o => orderCard(o, false)).join('') : '<div class="card muted">No orders yet.</div>');
+}
+function cancelOrder(id) {
+  if (!confirm('Cancel this order?')) return;
+  run(async () => { await api('/api/orders/' + id + '/cancel', { method: 'POST' }); toast('Order cancelled'); await viewOrders(); });
+}
+
+/* ---------- admin ---------- */
+async function viewAdmin() {
+  S.categories = await api('/api/categories');
+  const [prods, orders] = await Promise.all([api('/api/products?size=50&sortBy=id&direction=desc'), api('/api/admin/orders?size=20')]);
+  $('#view').innerHTML = `<h2>Admin dashboard</h2>
+    <div class="card"><h3>Add product</h3><form class="form wide" onsubmit="event.preventDefault();addProduct()">
+      <input id="p-name" placeholder="Name" required><input id="p-price" type="number" step="0.01" min="0.01" placeholder="Price" required>
+      <input id="p-stock" type="number" min="0" placeholder="Stock" required>
+      <select id="p-cat">${S.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <input id="p-desc" placeholder="Description"><button class="btn">Add product</button></form></div>
+    <div class="card"><h3>Add category</h3><form class="row" onsubmit="event.preventDefault();addCategory()">
+      <input id="cat-name" placeholder="Category name" required><button class="btn">Add category</button></form></div>
+    <div class="card"><h3>Products (${prods.totalElements})</h3><table><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr>
+      ${prods.content.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.categoryName)}</td><td>${money(p.price)}</td><td>${p.stockQuantity}</td>
+        <td><button class="btn bad sm" onclick="deleteProduct(${p.id})">Delete</button></td></tr>`).join('')}</table></div>
+    <h3>All orders (${orders.totalElements})</h3>${orders.content.map(o => orderCard(o, true)).join('') || '<div class="card muted">No orders yet.</div>'}`;
+}
+function addProduct() {
+  run(async () => {
+    await api('/api/admin/products', { method: 'POST', body: { name: $('#p-name').value, description: $('#p-desc').value,
+      price: Number($('#p-price').value), stockQuantity: Number($('#p-stock').value), categoryId: Number($('#p-cat').value) } });
+    toast('Product added'); await viewAdmin();
+  });
+}
+function addCategory() {
+  run(async () => { await api('/api/admin/categories', { method: 'POST', body: { name: $('#cat-name').value } });
+    S.categories = []; toast('Category added'); await viewAdmin(); });
+}
+function deleteProduct(id) {
+  if (!confirm('Delete this product?')) return;
+  run(async () => { await api('/api/admin/products/' + id, { method: 'DELETE' }); toast('Product deleted'); await viewAdmin(); });
+}
+function setStatus(id, status) {
+  if (!status) return;
+  run(async () => { await api('/api/admin/orders/' + id + '/status', { method: 'PATCH', body: { status } }); toast('Status updated'); await viewAdmin(); });
+}
+
+go('products');
+</script>
+</body>
+</html>
